@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import "./Navbar.css";
 import UserProfileModel from "./UserProfileModel";
+import { Link, useNavigate } from "@tanstack/react-router";
+
+interface User {
+  email: string;
+  name: string;
+}
 
 function Header() {
-  const [userData, setUserData] = useState({});
-  const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const navigate = useNavigate();
   const token = localStorage.getItem("token"); // Assuming token is stored in localStorage
@@ -16,7 +21,7 @@ function Header() {
     }
   }, [token]);
 
-  const fetchUserData = async (token) => {
+  const fetchUserData = async (token: string) => {
     try {
       const response = await fetch("http://localhost:9090/user", {
         headers: {
@@ -25,7 +30,7 @@ function Header() {
         },
       });
       if (response.ok) {
-        const data = await response.json();
+        const data: User = await response.json();
         console.log(data);
         setUserData(data);
       } else {
@@ -39,11 +44,13 @@ function Header() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate({ to: "/login" });
   };
 
   const openUserProfileModal = () => {
-    const userDataFromStorage = JSON.parse(localStorage.getItem("user"));
+    const userDataFromStorage = JSON.parse(
+      localStorage.getItem("user") || "{}"
+    ) as User;
     setUser(userDataFromStorage);
     setShowUserProfileModal(true);
   };
@@ -62,7 +69,7 @@ function Header() {
         </div>
         {/* Right side */}
         <div className="right">
-          <Link to={"/dashboard"}>
+          <Link to="/dashboard">
             <button className="dashboard-button">Dashboard</button>
           </Link>
 
@@ -81,12 +88,18 @@ function Header() {
             Logout
           </button>
 
-          {userData.name && <span>{userData.name}</span>}
+          {userData?.name && <span>{userData.name}</span>}
         </div>
       </nav>
       {/* User Profile Modal (optional implementation) */}
       {showUserProfileModal && (
-        <UserProfileModel user={user} onClose={closeUserProfileModal} />
+        <UserProfileModel
+          user={user}
+          onClose={closeUserProfileModal}
+          onEdit={function (): void {
+            throw new Error("Function not implemented.");
+          }}
+        />
       )}
     </header>
   );

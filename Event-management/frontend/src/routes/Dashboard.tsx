@@ -1,29 +1,67 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import "./Dashboard.css";
-import Header from "./Navbar";
+import Header from "../Navbar";
+import { createFileRoute } from "@tanstack/react-router";
+
+// Route Definition
+export const Route = createFileRoute("/Dashboard")({
+  component: Dashboard,
+});
+interface Event {
+  _id: string;
+  title: string;
+  description: string;
+  startDate: string;
+  finishDate: string;
+  venue: string;
+  price: number;
+  image: string;
+}
+
+interface Ticket {
+  _id: string;
+  event?: Event;
+}
+
+interface EditedFields {
+  title?: string;
+  description?: string;
+  startDate?: string;
+  finishDate?: string;
+  venue?: string;
+  price?: string;
+}
 
 function Dashboard() {
-  const [userEvents, setUserEvents] = useState([]);
-  const [scheduledEvents, setScheduledEvents] = useState([]);
+  const [userEvents, setUserEvents] = useState<Event[]>([]);
+  const [scheduledEvents, setScheduledEvents] = useState<Ticket[]>([]);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editedFields, setEditedFields] = useState<EditedFields>({});
+  const [image, setImage] = useState<File | null>(null);
+
+  const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [editedFields, setEditedFields] = useState({});
-  const [image, setImage] = useState(null);
-
   useEffect(() => {
-    if (token) {
-      fetchUserEvents(token);
-      fetchScheduledEvents(token);
+    if (!token) {
+      navigate({ to: "/LoginPage" });
+      return;
     }
-  }, [token]);
+    fetchUserEvents(token);
+    fetchScheduledEvents(token);
+  }, [token, navigate]);
 
-  function formatDate(dateString) {
-    const options = { year: "numeric", month: "long", day: "numeric" };
+  const formatDate = (dateString: string): string => {
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    };
     return new Date(dateString).toLocaleDateString(undefined, options);
-  }
+  };
 
-  const fetchUserEvents = async (token) => {
+  const fetchUserEvents = async (token: string) => {
     try {
       const response = await fetch("http://localhost:9090/event", {
         headers: {
@@ -43,7 +81,7 @@ function Dashboard() {
     }
   };
 
-  const fetchScheduledEvents = async (token) => {
+  const fetchScheduledEvents = async (token: string) => {
     try {
       const response = await fetch("http://localhost:9090/ticket/user", {
         headers: {
@@ -54,7 +92,6 @@ function Dashboard() {
       if (response.ok) {
         const data = await response.json();
         setScheduledEvents(data.userTickets);
-        console.log(data);
       } else {
         console.error("Error fetching scheduled events");
       }
@@ -63,7 +100,7 @@ function Dashboard() {
     }
   };
 
-  const handleEditClick = (event) => {
+  const handleEditClick = (event: Event) => {
     setEditingEvent(event);
     setEditedFields({
       title: event.title,
@@ -71,29 +108,30 @@ function Dashboard() {
       startDate: event.startDate,
       finishDate: event.finishDate,
       venue: event.venue,
-      price: event.price,
+      price: event.price.toString(),
     });
   };
 
-  const handleFieldChange = (field, value) => {
-    setEditedFields({
-      ...editedFields,
+  const handleFieldChange = (field: keyof EditedFields, value: string) => {
+    setEditedFields((prev) => ({
+      ...prev,
       [field]: value,
-    });
+    }));
   };
 
-  const handleImageChange = (e) => {
-    setImage(e.target.files[0]);
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      setImage(e.target.files[0]);
+    }
   };
 
   const handleSaveClick = async () => {
+    if (!editingEvent || !token) return;
+
     const formData = new FormData();
-    formData.append("title", editedFields.title);
-    formData.append("description", editedFields.description);
-    formData.append("startDate", editedFields.startDate);
-    formData.append("finishDate", editedFields.finishDate);
-    formData.append("venue", editedFields.venue);
-    formData.append("price", editedFields.price);
+    Object.entries(editedFields).forEach(([key, value]) => {
+      if (value) formData.append(key, value);
+    });
     if (image) {
       formData.append("image", image);
     }
@@ -111,19 +149,10 @@ function Dashboard() {
       );
 
       if (response.ok) {
-        setUserEvents((prevUserEvents) =>
-          prevUserEvents.map((event) =>
-            event._id === editingEvent._id
-              ? { ...event, ...editedFields }
-              : event
-          )
-        );
-
         setEditingEvent(null);
         setEditedFields({});
         setImage(null);
-
-        window.location.reload();
+        fetchUserEvents(token);
       } else {
         console.error("Failed to update event.");
       }
@@ -132,8 +161,28 @@ function Dashboard() {
     }
   };
 
-  const handleDeleteClick = async (eventId) => {
+  const handleDeleteClick = async (eventId: string) => {
+    if (!token) return;
+
     try {
+      const ticketResponse = await fetch(
+        `http://localhost:9090/ticket/event/${eventId}`,
+        {
+          headers: {
+            Authorization: `${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (ticketResponse.ok) {
+        const ticketData = await ticketResponse.json();
+        if (ticketData.tickets.length > 0) {
+          alert("Cannot delete event. It is booked by at least one person.");
+          return;
+        }
+      }
+
       const response = await fetch(`http://localhost:9090/event/${eventId}`, {
         method: "DELETE",
         headers: {
@@ -142,11 +191,7 @@ function Dashboard() {
       });
 
       if (response.ok) {
-        setUserEvents((prevUserEvents) =>
-          prevUserEvents.filter((event) => event._id !== eventId)
-        );
-
-        window.location.reload();
+        fetchUserEvents(token);
       } else {
         console.error("Failed to delete event.");
       }
@@ -155,9 +200,11 @@ function Dashboard() {
     }
   };
 
-  const handleCancelEventClick = async (eventId) => {
+  const handleCancelEventClick = async (ticketId: string) => {
+    if (!token) return;
+
     try {
-      const response = await fetch(`http://localhost:9090/ticket/${eventId}`, {
+      const response = await fetch(`http://localhost:9090/ticket/${ticketId}`, {
         method: "DELETE",
         headers: {
           Authorization: `${token}`,
@@ -165,11 +212,7 @@ function Dashboard() {
       });
 
       if (response.ok) {
-        setScheduledEvents((prevScheduledEvents) =>
-          prevScheduledEvents.filter((ticket) => ticket.event?._id !== eventId)
-        );
-
-        window.location.reload();
+        fetchScheduledEvents(token);
       } else {
         console.error("Failed to cancel event.");
       }
@@ -237,9 +280,9 @@ function Dashboard() {
                   </>
                 ) : (
                   <>
-                    <h3>{event.title ? event.title : "No Title"}</h3>
+                    <h3>{event.title || "No Title"}</h3>
                     <p className="first-p">
-                      {event.description ? event.description : "No Description"}
+                      {event.description || "No Description"}
                     </p>
                     <p className="second-p">
                       Start Date:{" "}
@@ -254,10 +297,10 @@ function Dashboard() {
                         : "No Date"}
                     </p>
                     <p className="third-p">
-                      Venue: {event.venue ? event.venue : "No Venue"}
+                      Venue: {event.venue || "No Venue"}
                     </p>
                     <p className="third-p">
-                      Price: ${event.price ? event.price : "No Price"}
+                      Price: ${event.price || "No Price"}
                     </p>
                     <img
                       src={`http://localhost:9090/uploads/${event.image}`}
@@ -307,11 +350,10 @@ function Dashboard() {
                     : "No Date"}
                 </p>
                 <p className="third-p">
-                  Venue: {ticket.event?.venue ? ticket.event.venue : "No Venue"}
+                  Venue: {ticket.event?.venue || "No Venue"}
                 </p>
                 <p className="third-p">
-                  Price: $
-                  {ticket.event?.price ? ticket.event.price : "No Price"}
+                  Price: ${ticket.event?.price || "No Price"}
                 </p>
                 <img
                   src={`http://localhost:9090/uploads/${ticket.event?.image}`}
@@ -332,5 +374,3 @@ function Dashboard() {
     </div>
   );
 }
-
-export default Dashboard;

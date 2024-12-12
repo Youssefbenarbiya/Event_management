@@ -1,8 +1,23 @@
 import React, { useState, useEffect } from "react";
 import "./UserProfileModel.css";
 
-function UserProfileModel({ onClose, onEdit }) {
-  const [user, setUser] = useState(null);
+interface UserProfileModelProps {
+  onClose: () => void;
+  onEdit: () => void;
+}
+
+interface User {
+  email: string;
+  name: string;
+}
+
+interface UserProfileModelProps {
+  user: User | null;
+
+  onClose: () => void;
+}
+const UserProfileModel: React.FC<UserProfileModelProps> = ({ onClose }) => {
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const storedEmail = localStorage.getItem("email");

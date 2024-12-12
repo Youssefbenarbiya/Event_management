@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import "./CreateEvent.css";
-import Header from "./Navbar";
-
+import Header from "../Navbar";
+export const Route = createFileRoute("/CreateEvent")({
+  component: CreateEvent,
+});
 function CreateEvent() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -10,17 +12,19 @@ function CreateEvent() {
   const [finishDate, setFinishDate] = useState("");
   const [venue, setVenue] = useState("");
   const [price, setPrice] = useState("");
-  const [image, setImage] = useState(null);
+  const [image, setImage] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
   // Function to handle image file selection
-  const handleImageChange = (e) => {
-    setImage(e.target.files[0]);
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setImage(e.target.files[0]);
+    }
   };
 
-  const handleCreateEvent = async (e) => {
+  const handleCreateEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       setIsLoading(true);
@@ -46,7 +50,7 @@ function CreateEvent() {
 
       if (response.ok) {
         alert("Event created successfully!");
-        navigate("/dashboard");
+        navigate({ to: "/Dashboard" });
       } else {
         const errorResponse = await response.json(); // Capture error response
         alert(
@@ -125,5 +129,3 @@ function CreateEvent() {
     </div>
   );
 }
-
-export default CreateEvent;
